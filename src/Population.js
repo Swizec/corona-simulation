@@ -3,9 +3,8 @@ import * as d3 from "d3";
 import hexoid from "hexoid";
 
 const RADIUS = 5;
-const ITERATIONS_TO_DIE = 20;
-const ITERATIONS_TO_RECOVER = ITERATIONS_TO_DIE * 2;
-const MORTALITY = 4;
+const ITERATIONS_TO_RECOVER = 40;
+const MORTALITY = 0.04;
 
 const Person = ({ x, y, infected, dead, recovered }) => {
     // I really should've used styled components :P
@@ -146,15 +145,12 @@ function infectPeople(population, contacts, elapsedTime) {
 function peopleDieOrGetBetter(population, elapsedTime) {
     return population.map(p => {
         if (p.infected) {
-            if ((elapsedTime - p.infected) / 60 > ITERATIONS_TO_DIE) {
-                if (d3.randomUniform(0, 100)() < MORTALITY) {
-                    return {
-                        ...p,
-                        dead: true
-                    };
-                } else {
-                    return p;
-                }
+            // infected people have a MORTALITY % chance of dying every day until they recover
+            if (d3.randomUniform(0, 1)() < MORTALITY / ITERATIONS_TO_RECOVER) {
+                return {
+                    ...p,
+                    dead: true
+                };
             } else if (
                 (elapsedTime - p.infected) / 60 >
                 ITERATIONS_TO_RECOVER
