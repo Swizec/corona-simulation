@@ -1,5 +1,6 @@
 import React from "react";
 import "./App.css";
+import * as d3 from "d3";
 
 const Person = ({ x, y, infected, dead, recovered }) => {
     // I really should've used styled components :P
@@ -25,7 +26,55 @@ const Person = ({ x, y, infected, dead, recovered }) => {
     );
 };
 
+// generates a population oriented around (cx, cy)
+// fits into width and height
+function createRow({ cx, cy, width }) {
+    // fit as many as possible into a row
+    const N = Math.floor(width / 15);
+
+    // point scale positions a row for us
+    const xScale = d3
+        .scalePoint()
+        .domain(d3.range(0, N))
+        .range([cx - width / 2, cx + width / 2]);
+
+    const row = d3.range(0, N).map(i => ({
+        x: xScale(i),
+        y: cy
+    }));
+
+    return row;
+}
+
+function createPopulation({ cx, cy, width, height }) {
+    const Nrows = Math.floor(height / 15);
+
+    const yScale = d3
+        .scalePoint()
+        .domain(d3.range(0, Nrows))
+        .range([cy - height / 2, cy + height / 2]);
+
+    // figure out how to make this create a circle
+    const widthScale = d3
+        .scaleLinear()
+        .domain([0, Nrows / 2, Nrows])
+        .range([15, width, 15]);
+
+    const rows = d3
+        .range(0, Nrows)
+        .map(i => createRow({ cx, cy: yScale(i), width: widthScale(i) }));
+
+    return rows.reduce((population, row) => [...population, ...row]);
+}
+
 function App() {
+    const population = createPopulation({
+        cx: 400,
+        cy: 200,
+        width: 400,
+        height: 300
+    });
+
     return (
         <div className="App">
             <h1>Visualizing the spread of viruses in a population</h1>
@@ -35,7 +84,9 @@ function App() {
                     height: "100vh"
                 }}
             >
-                <Person x={100} y={100} />
+                {population.map(p => (
+                    <Person x={p.x} y={p.y} />
+                ))}
             </svg>
         </div>
     );
