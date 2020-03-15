@@ -142,11 +142,12 @@ function infectPeople(population, contacts, elapsedTime) {
 }
 
 // after N iterations you either die or improve
-function peopleDieOrGetBetter(population, elapsedTime) {
+function peopleDieOrGetBetter(population, elapsedTime, mortality) {
+    console.log(mortality);
     return population.map(p => {
         if (p.infected) {
             // infected people have a MORTALITY % chance of dying every day until they recover
-            if (d3.randomUniform(0, 1)() < MORTALITY / ITERATIONS_TO_RECOVER) {
+            if (d3.randomUniform(0, 1)() < mortality / ITERATIONS_TO_RECOVER) {
                 return {
                     ...p,
                     dead: true
@@ -169,7 +170,7 @@ function peopleDieOrGetBetter(population, elapsedTime) {
     });
 }
 
-function usePopulation({ cx, cy, width, height }) {
+function usePopulation({ width, height, mortality }) {
     const [population, setPopulation] = useState(
         createPopulation({
             cx: width / 2,
@@ -206,7 +207,11 @@ function usePopulation({ cx, cy, width, height }) {
                 peopleCollisions(nextPopulation),
                 elapsedTime
             );
-            nextPopulation = peopleDieOrGetBetter(nextPopulation, elapsedTime);
+            nextPopulation = peopleDieOrGetBetter(
+                nextPopulation,
+                elapsedTime,
+                mortality / 100
+            );
 
             return nextPopulation;
         });
@@ -222,15 +227,16 @@ function usePopulation({ cx, cy, width, height }) {
         }
     }, [simulating]);
 
-    return { population, startSimulation };
+    return { population, startSimulation, simulating };
 }
 
-export const Population = ({ cx, cy, width, height }) => {
-    const { population, startSimulation } = usePopulation({
-        cx,
-        cy,
+export const Population = ({ width, height, defaultMortality = 4 }) => {
+    const [mortality, setMortality] = useState(defaultMortality);
+
+    const { population, startSimulation, simulating } = usePopulation({
         width,
-        height
+        height,
+        mortality
     });
 
     return (
@@ -246,10 +252,30 @@ export const Population = ({ cx, cy, width, height }) => {
                 ))}
             </svg>
             <div>
-                {population.find(p => p.infected) ? null : (
-                    <button onClick={startSimulation}>Infect a Person</button>
+                {simulating ? null : (
+                    <button onClick={startSimulation}>Start simulation</button>
                 )}
             </div>
+            <p>
+                Population: {population.length}, Infected:{" "}
+                {population.filter(p => p.infected !== null).length}, Dead:{" "}
+                {population.filter(p => p.dead).length}, Recovered:{" "}
+                {population.filter(p => p.recovered).length}
+            </p>
+            {simulating ? null : (
+                <p>
+                    Mortality:{" "}
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={mortality}
+                        onChange={ev => setMortality(ev.target.value)}
+                        step={1}
+                    />
+                    {mortality}%
+                </p>
+            )}
         </>
     );
 };
