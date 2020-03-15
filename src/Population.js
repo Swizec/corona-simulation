@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import * as d3 from "d3";
+import hexoid from "hexoid";
 
 const Person = ({ x, y, infected, dead, recovered }) => {
     // I really should've used styled components :P
@@ -39,7 +40,8 @@ function createRow({ cx, cy, width }) {
 
     const row = d3.range(0, N).map(i => ({
         x: xScale(i),
-        y: cy
+        y: cy,
+        key: hexoid(25)()
     }));
 
     return row;
@@ -66,6 +68,18 @@ function createPopulation({ cx, cy, width, height }) {
     return rows.reduce((population, row) => [...population, ...row]);
 }
 
+// people tend to move around
+// this step makes that happen
+function peopleMove(population) {
+    const random = d3.randomUniform(-1, 1);
+
+    return population.map(p => ({
+        ...p,
+        x: p.x + random(),
+        y: p.y + random()
+    }));
+}
+
 function usePopulation({ cx, cy, width, height }) {
     const [population, setPopulation] = useState(
         createPopulation({
@@ -75,6 +89,8 @@ function usePopulation({ cx, cy, width, height }) {
             height: height - 15
         })
     );
+    // controls when the simulation is running
+    const [simulating, setSimulating] = useState(false);
 
     function startSimulation() {
         // avoid changing values directly
@@ -87,7 +103,28 @@ function usePopulation({ cx, cy, width, height }) {
         person.infected = true;
 
         setPopulation(nextPopulation);
+        setSimulating(true);
     }
+
+    function iteratePopulation() {
+        setPopulation(population => {
+            // calculate the next state of our population on each tick
+            let nextPopulation = [...population]; // avoid changin stuff directly
+
+            nextPopulation = peopleMove(nextPopulation);
+            return nextPopulation;
+        });
+    }
+
+    // runs the simulation loop
+    useEffect(() => {
+        if (simulating) {
+            const t = d3.timer(iteratePopulation);
+
+            // stop timer when cleaning up
+            return t.stop;
+        }
+    }, [simulating]);
 
     return { population, startSimulation };
 }
@@ -113,7 +150,9 @@ export const Population = ({ cx, cy, width, height }) => {
                 ))}
             </svg>
             <div>
-                <button onClick={startSimulation}>Infect a Person</button>
+                {population.find(p => p.infected) ? null : (
+                    <button onClick={startSimulation}>Infect a Person</button>
+                )}
             </div>
         </>
     );
