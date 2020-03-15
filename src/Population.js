@@ -3,17 +3,20 @@ import * as d3 from "d3";
 import hexoid from "hexoid";
 
 const RADIUS = 5;
+const ITERATIONS_TO_DIE = 20;
+const ITERATIONS_TO_RECOVER = ITERATIONS_TO_DIE * 2;
+const MORTALITY = 4;
 
 const Person = ({ x, y, infected, dead, recovered }) => {
     // I really should've used styled components :P
     let strokeColor = "rgb(146, 120, 226)";
     let fillColor = "white";
 
-    if (infected) {
+    if (dead) {
+        strokeColor = "rgba(0, 0, 0, .5)";
+    } else if (infected !== null) {
         strokeColor = "rgb(246, 102, 64)";
         fillColor = "rgb(246, 102, 64)";
-    } else if (dead) {
-        strokeColor = "rgba(0, 0, 0, .5)";
     } else if (recovered) {
         strokeColor = "rgb(146, 119, 227)";
     }
@@ -43,7 +46,8 @@ function createRow({ cx, cy, width }) {
     const row = d3.range(0, N).map(i => ({
         x: xScale(i),
         y: cy,
-        key: hexoid(25)()
+        key: hexoid(25)(),
+        infected: null
     }));
 
     return row;
@@ -75,17 +79,21 @@ function createPopulation({ cx, cy, width, height }) {
 function peopleMove(population) {
     const random = d3.randomUniform(-1, 1);
 
-    return population.map(p => ({
-        ...p,
-        x: p.x + random(),
-        y: p.y + random()
-    }));
+    return population.map(p =>
+        p.dead
+            ? p
+            : {
+                  ...p,
+                  x: p.x + random(),
+                  y: p.y + random()
+              }
+    );
 }
 
 // when people collide, they transfer viruses
 function peopleCollisions(population) {
     // we only care about infected people
-    const infected = population.filter(p => p.infected);
+    const infected = population.filter(p => p.infected !== null);
 
     // find people in vicinity of infected people
     const collisions = infected.map(person => {
@@ -116,7 +124,8 @@ function peopleCollisions(population) {
 
 // takes a population and list of contacts with infected folks
 // decides who got infected
-function infectPeople(population, contacts) {
+// we keep track of when you got infected with elapsedTime
+function infectPeople(population, contacts, elapsedTime) {
     const contactKeys = contacts.map(p => p.key);
 
     return population.map(p => {
@@ -124,8 +133,40 @@ function infectPeople(population, contacts) {
             // this person came into contact with an infected fellow
             return {
                 ...p,
-                infected: true
+                infected: elapsedTime, // 100% infection rate
+                recovered: false
             };
+        } else {
+            return p;
+        }
+    });
+}
+
+// after N iterations you either die or improve
+function peopleDieOrGetBetter(population, elapsedTime) {
+    return population.map(p => {
+        if (p.infected) {
+            if ((elapsedTime - p.infected) / 60 > ITERATIONS_TO_DIE) {
+                if (d3.randomUniform(0, 100)() < MORTALITY) {
+                    return {
+                        ...p,
+                        dead: true
+                    };
+                } else {
+                    return p;
+                }
+            } else if (
+                (elapsedTime - p.infected) / 60 >
+                ITERATIONS_TO_RECOVER
+            ) {
+                return {
+                    ...p,
+                    infected: null,
+                    recovered: true
+                };
+            } else {
+                return p;
+            }
         } else {
             return p;
         }
@@ -152,13 +193,13 @@ function usePopulation({ cx, cy, width, height }) {
         const person =
             nextPopulation[Math.floor(Math.random() * nextPopulation.length)];
 
-        person.infected = true;
+        person.infected = 0;
 
         setPopulation(nextPopulation);
         setSimulating(true);
     }
 
-    function iteratePopulation() {
+    function iteratePopulation(elapsedTime) {
         setPopulation(population => {
             // calculate the next state of our population on each tick
             let nextPopulation = [...population]; // avoid changin stuff directly
@@ -166,8 +207,10 @@ function usePopulation({ cx, cy, width, height }) {
             nextPopulation = peopleMove(nextPopulation);
             nextPopulation = infectPeople(
                 nextPopulation,
-                peopleCollisions(nextPopulation)
+                peopleCollisions(nextPopulation),
+                elapsedTime
             );
+            nextPopulation = peopleDieOrGetBetter(nextPopulation, elapsedTime);
 
             return nextPopulation;
         });
