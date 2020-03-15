@@ -146,7 +146,7 @@ function peopleCollisions(population) {
 // takes a population and list of contacts with infected folks
 // decides who got infected
 // we keep track of when you got infected with elapsedTime
-function infectPeople(population, contacts, elapsedTime, virality) {
+function infectPeople(population, contacts, iterationCount, virality) {
     const contactKeys = contacts.map(p => p.key);
 
     return population.map(p => {
@@ -155,7 +155,7 @@ function infectPeople(population, contacts, elapsedTime, virality) {
             if (d3.randomUniform(0, 100)() < virality) {
                 return {
                     ...p,
-                    infected: elapsedTime, // 100% infection rate
+                    infected: iterationCount, // 100% infection rate
                     recovered: false
                 };
             } else {
@@ -174,7 +174,6 @@ function peopleDieOrGetBetter(
     mortality,
     lengthOfInfection
 ) {
-    console.log(iterationCount, mortality, lengthOfInfection);
     return population.map(p => {
         if (p.infected) {
             // infected people have a MORTALITY % chance of dying every day until they recover
@@ -184,7 +183,7 @@ function peopleDieOrGetBetter(
                     dead: true,
                     infected: null // so invisible dead people can't infect others
                 };
-            } else if (iterationCount > lengthOfInfection) {
+            } else if (iterationCount - p.infected > lengthOfInfection) {
                 return {
                     ...p,
                     infected: null,
@@ -235,6 +234,7 @@ function usePopulation({
     }
 
     function iteratePopulation(elapsedTime) {
+        const iterationCount = Math.floor(elapsedTime / 60);
         setPopulation(population => {
             // calculate the next state of our population on each tick
             let nextPopulation = [...population]; // avoid changin stuff directly
@@ -243,7 +243,7 @@ function usePopulation({
             nextPopulation = infectPeople(
                 nextPopulation,
                 peopleCollisions(nextPopulation),
-                elapsedTime,
+                iterationCount,
                 virality
             );
             nextPopulation = peopleDieOrGetBetter(
@@ -255,7 +255,7 @@ function usePopulation({
 
             return nextPopulation;
         });
-        setIterationCount(Math.floor(elapsedTime / 60));
+        setIterationCount(iterationCount);
     }
 
     // runs the simulation loop
