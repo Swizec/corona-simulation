@@ -17,7 +17,8 @@ const Person = ({ x, y, infected, dead, recovered }) => {
         strokeColor = "rgb(246, 102, 64)";
         fillColor = "rgb(246, 102, 64)";
     } else if (recovered) {
-        strokeColor = "rgb(146, 119, 227)";
+        strokeColor = "rgba(146, 119, 227, 0.5)";
+        fillColor = "rgba(146, 119, 227, 0.5)";
     }
 
     return (
@@ -146,13 +147,34 @@ function peopleCollisions(population) {
 // takes a population and list of contacts with infected folks
 // decides who got infected
 // we keep track of when you got infected with elapsedTime
-function infectPeople(population, contacts, iterationCount, virality) {
+function infectPeople(
+    population,
+    contacts,
+    iterationCount,
+    virality,
+    reinfectability
+) {
     const contactKeys = contacts.map(p => p.key);
 
     return population.map(p => {
         if (contactKeys.includes(p.key)) {
             // this person came into contact with an infected fellow
-            if (d3.randomUniform(0, 100)() < virality) {
+
+            if (p.recovered) {
+                // this person previously recovered
+                if (
+                    d3.randomUniform(0, 100)() <
+                    virality * (reinfectability / 100)
+                ) {
+                    return {
+                        ...p,
+                        infected: iterationCount, // 100% infection rate
+                        recovered: false
+                    };
+                } else {
+                    return p;
+                }
+            } else if (d3.randomUniform(0, 100)() < virality) {
                 return {
                     ...p,
                     infected: iterationCount, // 100% infection rate
@@ -204,7 +226,8 @@ function usePopulation({
     mortality,
     virality,
     lengthOfInfection,
-    socialDistancing
+    socialDistancing,
+    reinfectability
 }) {
     const [population, setPopulation] = useState(
         createPopulation({
@@ -233,6 +256,10 @@ function usePopulation({
         setSimulating(true);
     }
 
+    function stopSimulation() {
+        setSimulating(false);
+    }
+
     function iteratePopulation(elapsedTime) {
         const iterationCount = Math.floor(elapsedTime / 60);
         setPopulation(population => {
@@ -244,7 +271,8 @@ function usePopulation({
                 nextPopulation,
                 peopleCollisions(nextPopulation),
                 iterationCount,
-                virality
+                virality,
+                reinfectability
             );
             nextPopulation = peopleDieOrGetBetter(
                 nextPopulation,
@@ -264,11 +292,17 @@ function usePopulation({
             const t = d3.timer(iteratePopulation);
 
             // stop timer when cleaning up
-            return t.stop;
+            return () => t.stop();
         }
     }, [simulating]);
 
-    return { population, startSimulation, simulating, iterationCount };
+    return {
+        population,
+        startSimulation,
+        stopSimulation,
+        simulating,
+        iterationCount
+    };
 }
 
 export const Population = ({
@@ -277,7 +311,8 @@ export const Population = ({
     defaultMortality = 4,
     defaultVirality = 50,
     defaultLengthOfInfection = 40,
-    defaultSocialDistancing = 0
+    defaultSocialDistancing = 0,
+    defaultReinfectability = 30
 }) => {
     const [mortality, setMortality] = useState(defaultMortality);
     const [virality, setVirality] = useState(defaultVirality);
@@ -287,10 +322,14 @@ export const Population = ({
     const [socialDistancing, setSocialDistancing] = useState(
         defaultSocialDistancing
     );
+    const [reinfectability, setReinfectability] = useState(
+        defaultReinfectability
+    );
 
     const {
         population,
         startSimulation,
+        stopSimulation,
         simulating,
         iterationCount
     } = usePopulation({
@@ -299,7 +338,8 @@ export const Population = ({
         mortality,
         virality,
         socialDistancing,
-        lengthOfInfection
+        lengthOfInfection,
+        reinfectability
     });
 
     return (
@@ -315,7 +355,9 @@ export const Population = ({
                 ))}
             </svg>
             <div>
-                {simulating ? null : (
+                {simulating ? (
+                    <button onClick={stopSimulation}>Stop</button>
+                ) : (
                     <button onClick={startSimulation}>Start simulation</button>
                 )}
             </div>
@@ -343,6 +385,12 @@ export const Population = ({
                 label="Virality"
                 value={virality}
                 setter={setVirality}
+                editable={!simulating}
+            />
+            <Slider
+                label="Reinfectability"
+                value={reinfectability}
+                setter={setReinfectability}
                 editable={!simulating}
             />
             <Slider
