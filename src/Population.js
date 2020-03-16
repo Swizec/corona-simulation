@@ -51,8 +51,7 @@ const Slider = ({ label, value, setter, unit = "%", editable }) => {
     );
 };
 
-// generates a population oriented around (cx, cy)
-// fits into width and height
+// creates a row of population
 function createRow({ cx, cy, width }) {
     // fit as many as possible into a row
     const N = Math.floor(width / 15);
@@ -73,6 +72,8 @@ function createRow({ cx, cy, width }) {
     return row;
 }
 
+// generates a population oriented around (cx, cy)
+// fits into width and height
 function createPopulation({ cx, cy, width, height }) {
     const Nrows = Math.ceil(height / 15);
 
